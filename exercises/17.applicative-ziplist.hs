@@ -79,25 +79,16 @@ instance Functor ZipList' where
 zipAppend:: ZipList' a -> ZipList' a -> ZipList' a
 zipAppend (ZipList' l1) (ZipList' l2) = ZipList' (append l1 l2)
 
+-- Function fzip (I invented it :-) )
+fzip:: List (a->b) -> List a -> List b
+fzip Nil _  = Nil
+fzip _ Nil = Nil
+fzip (Cons f fs) (Cons a as) = Cons (f a)  (fzip fs as)
+
+-- See comments below:
 instance Applicative ZipList' where
-    -- Lifting x, in the context of a ZipList', means creating an infinite list of x's.
-    -- e.g. > pure 1 :: ZipList' Int
-    --    will result in a ZipList containing an infinite list of 1's.
-    -- e.g. > ii =pure id :: ZipList' (a->a)
-    --      > :t ii 
-    --      > ii :: ZipList' (a -> a)
     pure x = ZipList' (infList x)  
-    -- If either list reaches Nil, stop...
-    (<*>) _ (ZipList' Nil) = ZipList' Nil
-    (<*>) (ZipList' Nil) _ = ZipList' Nil
-    -- Otherwise:
-    (<*>) (ZipList' (Cons f fs)) (ZipList' (Cons a as)) = zipAppend x y
-                                                            where
-                                                                x = ZipList' (Cons (f a) Nil)
-                                                                y = ((ZipList' fs) <*> (ZipList' as) )
-        
-        
-        -- consZip (ZipList' (Cons (f a) Nil)) ((ZipList' fs) <*> (ZipList' as) )
+    (<*>) (ZipList' ff) (ZipList' aa) = ZipList' (fzip ff aa)
 
 lst2 = Cons (1::Int,2::Int,3::Int) Nil
 
@@ -106,3 +97,12 @@ main =
     -- quickBatch (applicative lst2)
     quickBatch (applicative (ZipList' lst2))
 
+
+-- Lifting x, in the context of a ZipList', means creating an infinite list of x's.
+-- e.g. > pure 1 :: ZipList' Int
+--    will result in a ZipList containing an infinite list of 1's.
+-- e.g. > ii =pure id :: ZipList' (a->a)
+--      > :t ii 
+--      > ii :: ZipList' (a -> a)
+--
+-- See history of file for sequence of increasingly better attempts to express (<*>)

@@ -20,3 +20,7 @@ And if you need information about a module, try:
 > cabal info checkers
 ---
 
+
+Similar repositories that I found helpful:
+https://github.com/dmvianna/haskellbook
+https://github.com/johnmendonca/haskellbook-exercises

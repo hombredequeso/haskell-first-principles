@@ -21,6 +21,20 @@ append:: List a -> List a -> List a
 append Nil l2 = l2
 append (Cons h t) l2 = Cons h (append t l2)
 
+fold :: (a -> b -> b) -> b -> List a -> b
+fold _ b Nil = b
+fold f b (Cons h t) = f h (fold f b t)
+
+concat' :: List (List a) -> List a
+concat' = fold append Nil
+
+-- write this one in terms
+-- of concat' and fmap
+flatMap :: (a -> List b)
+            -> List a
+            -> List b
+flatMap f as = concat' (f <$> as)
+
 instance Functor List where
     fmap _ Nil = Nil
     fmap f (Cons h t) = Cons (f h) (fmap f t)
@@ -48,9 +62,6 @@ newtype ZipList' a =
     ZipList' (List a)
     deriving (Eq, Show)
 
-consZip :: ZipList' a -> ZipList' a -> ZipList' a
-consZip (ZipList' a1) (ZipList' a2) = ZipList' (append a1 a2)
-
 instance Arbitrary a => Arbitrary (ZipList' a) where
     arbitrary = ZipList' <$> arbitrary
 
@@ -65,6 +76,9 @@ instance Functor ZipList' where
     fmap f (ZipList' xs) =
         ZipList' $ fmap f xs
 
+zipAppend:: ZipList' a -> ZipList' a -> ZipList' a
+zipAppend (ZipList' l1) (ZipList' l2) = ZipList' (append l1 l2)
+
 instance Applicative ZipList' where
     -- Lifting x, in the context of a ZipList', means creating an infinite list of x's.
     -- e.g. > pure 1 :: ZipList' Int
@@ -77,7 +91,13 @@ instance Applicative ZipList' where
     (<*>) _ (ZipList' Nil) = ZipList' Nil
     (<*>) (ZipList' Nil) _ = ZipList' Nil
     -- Otherwise:
-    (<*>) (ZipList' (Cons f fs)) (ZipList' (Cons a as)) = consZip (ZipList' (Cons (f a) Nil)) ((ZipList' fs) <*> (ZipList' as) )
+    (<*>) (ZipList' (Cons f fs)) (ZipList' (Cons a as)) = zipAppend x y
+                                                            where
+                                                                x = ZipList' (Cons (f a) Nil)
+                                                                y = ((ZipList' fs) <*> (ZipList' as) )
+        
+        
+        -- consZip (ZipList' (Cons (f a) Nil)) ((ZipList' fs) <*> (ZipList' as) )
 
 lst2 = Cons (1::Int,2::Int,3::Int) Nil
 

@@ -1,5 +1,18 @@
 module BadMonoid where
 
+-- To get this working, it was necessary to install the checkers module using cabal.
+-- On my system this involved:
+-- > cabal update
+-- > cabal install checkers
+-- .
+-- It is possible to check the packages that are available to ghci using:
+-- > cabal list --installed
+-- Since that is likely to be a very long list, you may want to:
+-- > cabal list --installed | grep checkers
+-- And if you need information about a module, try:
+-- > cabal info checkers
+--
+
 import Data.Monoid
 import Test.QuickCheck
 import Test.QuickCheck.Checkers

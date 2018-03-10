@@ -121,10 +121,17 @@ data List a =
 instance (Eq a) => EqProp (List a) where
     (=-=) = eq
 
--- instance Arbitrary a =>
---     Arbitrary (List a) where
---         -- Gen Identity a = Identity fmap Gen a
---         arbitrary = Identity <$> arbitrary
+toList :: [a] -> List a
+toList = foldr (\x l -> Cons x l) Nil
+
+instance Arbitrary a => Arbitrary (List a) where
+    arbitrary = do
+        as <- listOf arbitrary
+        return (toList as)
+
+append:: List a -> List a -> List a
+append Nil l2 = l2
+append (Cons h t) l2 = Cons h (append t l2)
 
 instance Functor List where
     fmap f Nil = Nil
@@ -132,9 +139,16 @@ instance Functor List where
 
 instance Applicative List where
     pure a = Cons a Nil
-    -- todo
-    -- (<*>) ()
+    (<*>) _ Nil = Nil
+    (<*>) Nil _ = Nil
+    (<*>) (Cons f fs) xs = append (fmap f xs) (fs <*> xs)
 
+instance Monad List where
+    return = pure
+    -- (>>=) :: m a -> (a -> m b) -> m b
+    -- (>>=) :: List a -> (a -> List b) -> List b
+    (>>=) Nil _ = Nil
+    (>>=) (Cons h t) f = append (f h) (t >>= f)
 
 main :: IO ()
 main =  do
@@ -146,13 +160,17 @@ main =  do
             -- quickBatch (monad testNopes)
             
             let testEither = MonadExercises.Left testTuple:: PhhhbbtttEither String (Int, Int, Int)
-            quickBatch (functor testEither)
-            quickBatch (applicative testEither)
-            quickBatch (monad testEither)
+            -- quickBatch (functor testEither)
+            -- quickBatch (applicative testEither)
+            -- quickBatch (monad testEither)
             let testIdentity = Identity testTuple
-            quickBatch (functor testIdentity)
-            quickBatch (applicative testIdentity)
-            quickBatch (monad testIdentity)
+            -- quickBatch (functor testIdentity)
+            -- quickBatch (applicative testIdentity)
+            -- quickBatch (monad testIdentity)
 
+            let testList = Cons testTuple Nil
+            quickBatch (functor testList)
+            quickBatch (applicative testList)
+            quickBatch (monad testList)
 
     

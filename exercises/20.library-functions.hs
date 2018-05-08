@@ -28,7 +28,6 @@ product''  = getProduct . foldMap Product
 elem :: (Foldable t, Eq a) => a -> t a -> Bool
 elem a = getAny . foldMap (\x -> Any (x == a))
 
-
 -- 4. minimum :: (Foldable t, Ord a)
 -- => t a -> Maybe a
 --

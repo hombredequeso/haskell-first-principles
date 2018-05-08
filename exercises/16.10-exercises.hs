@@ -23,12 +23,28 @@ instance Arbitrary a => Arbitrary (Identity a) where
 
 data Pair a = Pair a a deriving (Show, Eq)
 
-instance Arbitrary a => Arbitrary (Pair a) where
-    arbitrary = Pair <$> arbitrary <*> arbitrary
-
 instance Functor Pair where
     fmap f (Pair a a') = Pair (f a) (f a')
 
+instance Arbitrary a => Arbitrary (Pair a) where
+    arbitrary = Pair <$> arbitrary <*> arbitrary
+
+--------------------------------------------------
+-- Alternative implementations of Arbitrary (Pair a)
+-- Same as above, but using prefix notation 
+
+-- instance Arbitrary a => Arbitrary (Pair a) where
+--     arbitrary = (<*>)( fmap Pair arbitrary ) arbitrary
+ 
+-- Using do notation
+
+-- instance Arbitrary a => Arbitrary (Pair a) where
+--     arbitrary -- :: Gen (Pair a) 
+--         = do
+--             a1 <- arbitrary
+--             a2 <- arbitrary
+--             return $ Pair a1 a2
+    
 --------------------------------------------------
 -- Two
 
@@ -62,6 +78,17 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (Three' a b) where
 
 instance Functor (Three' a) where
     fmap f (Three' a b1 b2) = Three' a (f b1) (f b2)
+
+
+--------------------------------------------------
+-- Four'
+data Four' a b = Four' a a a b deriving (Show, Eq)
+
+instance Functor (Four' a) where
+    fmap f (Four' a1 a2 a3 b) = Four' a1 a2 a3 (f b)
+
+instance (Arbitrary a, Arbitrary b) => Arbitrary (Four' a b) where
+    arbitrary = Four' <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 --------------------------------------------------
 -- Functor law tests
@@ -122,4 +149,7 @@ main = do
     quickCheck (functorIdentity :: (Three' Char Int) -> Bool)
     quickCheck (functorCompose' :: (Three' Char Int) -> IntToInt -> IntToInt -> Bool)
 
+    -- Four Tests
+    quickCheck (functorIdentity :: (Four' Char Int) -> Bool)
+    quickCheck (functorCompose' :: (Four' Char Int) -> IntToInt -> IntToInt -> Bool)
     putStrLn "done"

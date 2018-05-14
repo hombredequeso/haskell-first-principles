@@ -31,6 +31,10 @@ Prelude> :l 20.library-functions.2.hs
 Failed, no modules loaded.
 Prelude>
 
+### Pointfree
+
+[ Pointfree ](https://wiki.haskell.org/Pointfree) code does not explicitly mention function arguments. It is commonly used in functional languages. The [pointfree.io](http://pointfree.io/) site is a useful tool in learning Haskell, allowing you to type in your non-pointfree code and see what its most succinct pointfree form would be.
+
 ## System related
 
 To get QuickCheck.Checkers and QuickCheck.Classes to work:

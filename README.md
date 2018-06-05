@@ -79,5 +79,7 @@ Leaving GHCi.
 The book commonly known as "The Haskell Book":
 [Christopher Allen and Julie Moronuki, _Haskell Programming From First Principles._](http://haskellbook.com/)
 Similar repositories that I found helpful:
-https://github.com/dmvianna/haskellbook
-https://github.com/johnmendonca/haskellbook-exercises
+
+* https://github.com/dmvianna/haskellbook
+* https://github.com/johnmendonca/haskellbook-exercises
+

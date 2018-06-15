@@ -2,6 +2,7 @@
 
 module ChapterExerices21 where
 
+import Control.Applicative
 -- import Prelude hiding (Either, Left, Right)
 -- import Control.Monad (join)
 import Test.QuickCheck
@@ -100,17 +101,134 @@ instance Arbitrary a => Arbitrary (Optional a) where
 instance Eq a => EqProp (Optional a) where
     (=-=) = eq
 
--- -- List
+-- List
 
--- data List a =
---     Nil
---   | Cons a (List a)
+data List a =
+    Nil
+  | Cons a (List a)
+    deriving (Eq, Ord, Show)
+
+instance Functor List where
+    fmap _ Nil = Nil
+    fmap f (Cons a as) = Cons (f a) (fmap f as)
 
 
+-- foldr : a doesn't have to be a monoid,
+--          but it is necessary to provide and initial b value
+--          and a function like \a b -> b
+instance Foldable List where
+    foldr ab2b bInit Nil = bInit
+    foldr ab2b bInit (Cons a as) = ab2b a ( foldr ab2b bInit as)
+
+
+-- foldMap : a has to  be a monoid.
+--          That takes care of the initial value, and how to combine them.
+--
+-- instance Foldable List where
+--     foldMap _ Nil = mempty
+--     foldMap a2m (Cons head tail) = mappend (a2m head) (foldMap a2m tail)
+
+instance Traversable List where
+    -- (a -> f b) -> List a -> f (List b)
+    -- and f is applicative
+        -- e.g. if f was Maybe...
+        --  (a -> Maybe b) -> List a -> Maybe (List b)
+        --  (a -> Maybe b) -> Maybe (List b) ,   Maybe (List b) -> Maybe b -> Maybe (List b)
+    -- traverse a2fb as = _todo
+    traverse _ Nil = pure Nil
+    traverse a2fb (Cons a as) = liftA2 Cons (a2fb a) (traverse a2fb as)
+    -- which is the same as:
+    -- traverse a2fb (Cons a as) =  fmap Cons (a2fb a) <*> (traverse a2fb as)
+
+toList :: [a] -> List a
+toList = foldr Cons Nil
+
+instance Arbitrary a => Arbitrary (List a) where
+    arbitrary = fmap toList (listOf arbitrary)
+
+instance Eq a => EqProp (List a) where
+    (=-=) = eq
+
+-- Three
+data Three a b c =
+    Three a b c
+    deriving (Eq, Ord, Show)
+
+instance Traversable (Three a b) where
+    -- (c -> f d) -> Three a b c -> f (Three a b d)
+    -- f is applicative
+    traverse c2fd (Three a b c) = Three <$> (pure a) <*> (pure b) <*> (c2fd c)
+
+instance Functor (Three a b) where
+    fmap f (Three a b c) = Three a b (f c)
+
+instance Foldable (Three a b) where
+    foldr ab2b bInit (Three m n a) = ab2b a bInit
+
+instance (Arbitrary a, Arbitrary b, Arbitrary c) => Arbitrary (Three a b c) where
+    arbitrary = Three <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance ( Eq a, Eq b, Eq c ) => EqProp (Three a b c) where
+    (=-=) = eq
+
+
+-- Pair
+data Pair a b =
+    Pair a b
+    deriving (Eq, Ord, Show)
+
+instance Functor (Pair a) where
+    fmap f (Pair a b) = Pair a (f b)
+
+instance Foldable (Pair a) where
+    foldr f cInit (Pair a b) = f b cInit
+
+instance Traversable (Pair a) where
+    -- (b -> f c) -> Pair a b -> f (Pair a c)
+    -- Applicative f
+    traverse b2fc (Pair a b) = Pair <$> (pure a) <*> (b2fc b)
+    -- or:
+    -- traverse b2fc (Pair a b) = (pure Pair) <*> (pure a) <*> (b2fc b)
+    -- traverse b2fc (Pair a b) = (pure ( Pair a )) <*> (b2fc b)
+
+instance (Arbitrary a, Arbitrary b) => Arbitrary (Pair a b) where
+    arbitrary = Pair <$> arbitrary <*> arbitrary
+
+instance (Eq a, Eq b) => EqProp (Pair a b) where
+    (=-=) = eq
+
+-- Big 
+
+data Big a b =
+    Big a b b
+    deriving (Eq, Ord, Show)
+
+instance Functor (Big a) where
+    fmap f (Big a b1 b2) = Big a (f b1) (f b2)
+
+-- Use foldMap here, because it requires that the result (of type m)
+-- be a monoid, hence it is possible to `mappend` the two parts together.
+instance Foldable (Big a) where
+    foldMap b2m (Big a b1 b2) = (b2m b1) `mappend` (b2m b2)
+
+instance Traversable (Big a)  where
+    -- (b -> f c) -> Big a b -> f (Big a c)
+    -- f is applicative
+    traverse b2fc (Big a b1 b2) = (Big a) <*> (b2fc b1) <*> (b2fc b2)
+
+instance ( Arbitrary a, Arbitrary b ) => Arbitrary (Big a b) where
+    arbitrary = Big <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance ( Eq a, Eq b ) => EqProp (Big a b) where
+    (=-=) = eq
 
 idTrigger = undefined :: Identity (Int, Int, [Int])
 constTrigger = undefined :: Constant Int (Int, Int, [Int])
 optionalTrigger = undefined :: Optional (Int, Int, [Int])
+listTrigger = undefined :: List (Int, Int, [Int])
+threeTrigger = undefined :: Three Int Int (Int, Int, [Int])
+pairTrigger = undefined :: Pair Int (Int, Int, [Int])
+bigTrigger = undefined :: Big Int (Int, Int, [Int])
 
 main = do
     putStr "\nIdentity"
@@ -120,4 +238,16 @@ main = do
 
     putStr "\nOptional"
     quickBatch (traversable optionalTrigger)
+
+    putStr "\nList"
+    quickBatch (traversable listTrigger)
+
+    putStr "\nThree"
+    quickBatch (traversable threeTrigger)
+
+    putStr "\nPair"
+    quickBatch (traversable pairTrigger)
+
+    putStr "\nBig"
+    quickBatch (traversable bigTrigger)
 

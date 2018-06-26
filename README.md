@@ -83,3 +83,7 @@ Similar repositories that I found helpful:
 * https://github.com/dmvianna/haskellbook
 * https://github.com/johnmendonca/haskellbook-exercises
 
+See also:
+
+* (subreddit for asking questions related to learning Haskell through the Haskell Book)[https://www.reddit.com/r/HaskellBook/]
+

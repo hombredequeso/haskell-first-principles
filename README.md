@@ -51,6 +51,13 @@ And if you need information about a module, try:
 > cabal info checkers
 ---
  
+If 'cabal update' gives a 'failed to download error', try:
+
+```
+cabal --http-transport=plain-http update
+
+```
+
 ## Prerequisites
 The main prerequisite is the ghci compiler.
 Probably the simplest way to get started is to install "Haskell Platform"

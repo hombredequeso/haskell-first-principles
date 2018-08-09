@@ -63,6 +63,17 @@ The main prerequisite is the ghci compiler.
 Probably the simplest way to get started is to install "Haskell Platform"
 See [Haskell Downloads]( https://www.haskell.org/downloads )
 
+Currently, management of libraries is done manually using [Cabal](https://www.haskell.org/cabal/).
+
+Helpful cabal commands include:
+- List packages downloaded locally:
+> cabal list --installed
+- Install 'packageX'
+> cabal install packageX
+
+If having problems figuring out the name of the package to install, check out (How are Hackage package names mapped to 'cabal install' names?)[https://stackoverflow.com/a/7422549] for a very quick, helpful overview.
+
+
 ## Running Exercises
 
 Generally each of the exercise files stands-alone. For instance
@@ -93,4 +104,11 @@ Similar repositories that I found helpful:
 See also:
 
 * (subreddit for asking questions related to learning Haskell through the Haskell Book)[https://www.reddit.com/r/HaskellBook/]
+
+Other helpful links
+* (WHAT I WISH I KNEW WHEN LEARNING HASKELL)[http://dev.stephendiehl.com/hask/]
+    A _massive_ collection of helpful reference information. 
+* (How are Hackage package names mapped to 'cabal install' names?)[https://stackoverflow.com/a/7422549]
+    If you are confused about the relationship between packages and modules, and specifically wondering what to use when doing a 'cabal install'
+
 

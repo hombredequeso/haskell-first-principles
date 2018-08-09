@@ -1,5 +1,6 @@
 module LearnParsers where
 
+import Control.Applicative
 import Text.Trifecta
 
 -- Note, if loading this file results in the error:
@@ -49,7 +50,24 @@ oneTwoThreeS :: Parser String
 oneTwoThreeS = string "123"
 
 oneTwoOrThree :: Parser String
-oneTwoOrThree s = s <$> oneS <*> oneTwoS
+oneTwoOrThree = choice [ oneTwoThreeS, oneTwoS, oneS ]
+
+oneTwoOrThree' :: Parser String
+oneTwoOrThree' = oneS <|> oneTwoS <|> oneTwoThreeS
+
+-- parseString oneTwoOrThree mempty "123456"
+
+oneTwoOrThreeEof = oneTwoOrThree >> eof
+
+
+type NumberOrString =
+    Either Integer String
+
+
+parseNos :: Parser NumberOrString
+parseNos =
+        (Left <$> integer)
+    <|> (Right <$> some letter)
 
 main = do
     pNL "stop:"
@@ -63,3 +81,16 @@ main = do
     pNL "oneTwo':"
     testParse oneTwo'
 
+
+main2 = do
+    let a = "blah"
+    let b = "123"
+    let c = "123blah789"
+    let p f i =
+         parseString f mempty i
+    print $ p (some letter) a
+    print $ p integer b
+    print $ p parseNos a
+    print $ p parseNos b
+    print $ p (many parseNos) c
+    print $ p (some parseNos) c

@@ -55,6 +55,9 @@ parseReleaseSeparator :: Parser Char
 parseReleaseSeparator = char '-'
 testparseReleaseSeparator = parseString parseReleaseSeparator mempty
 
+parseMetadataSeparator :: Parser Char
+parseMetadataSeparator = char '+'
+
 toEmpty :: Maybe [t] -> [t]
 toEmpty ( Just x ) = x
 toEmpty Nothing = []
@@ -62,8 +65,13 @@ toEmpty Nothing = []
 parseReleaseM :: Parser (Maybe [NumberOrString])
 parseReleaseM = optional (parseReleaseSeparator >> parseRelease)
 
+parseMetadataM :: Parser (Maybe [NumberOrString])
+parseMetadataM = optional (parseMetadataSeparator >> parseRelease)
+
 parseReleaseX = toEmpty <$> parseReleaseM
 testParseReleaseX =  parseString parseReleaseX mempty 
+
+parseMetadataX = toEmpty <$> parseMetadataM
 
 parseSemVer :: Parser SemVer
 parseSemVer = SemVer 
@@ -71,7 +79,7 @@ parseSemVer = SemVer
                 <*> ((char '.') >> integer) 
                 <*> ((char '.') >> integer) 
                 <*> parseReleaseX
-                <*> parseReleaseX
+                <*> parseMetadataX
 
 testParseSemVer =  parseString parseSemVer mempty
 

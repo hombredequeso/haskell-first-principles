@@ -83,3 +83,14 @@ parseSemVer = SemVer
 
 testParseSemVer =  parseString parseSemVer mempty
 
+-- working examples:
+-- *SemVer> testParseSemVer "1.2.3-rere.r3r3.333+432.432.r3r3"
+-- Success (SemVer 1 2 3 [NOSS "rere",NOSS "r3r3",NOSI 333] [NOSI 432,NOSI 432,NOSS "r3r3"])
+-- *SemVer> testParseSemVer "1.2.3+432.432.r3r3"
+-- Success (SemVer 1 2 3 [] [NOSI 432,NOSI 432,NOSS "r3r3"])
+-- *SemVer> testParseSemVer "1.2.3"
+-- Success (SemVer 1 2 3 [] [])
+-- *SemVer> testParseSemVer "1.2.3-54.654.t4t4.helloWorld"
+-- Success (SemVer 1 2 3 [NOSI 54,NOSI 654,NOSS "t4t4",NOSS "helloWorld"] [])
+
+

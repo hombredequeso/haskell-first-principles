@@ -1,8 +1,12 @@
-module SemVer where
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
+module SemVer where
 
 import Control.Applicative
 import Text.Trifecta
+
+import Test.Hspec
 
 -- Relevant to precedence/ordering,
 -- cannot sort numbers like strings.
@@ -10,7 +14,6 @@ data NumberOrString =
     NOSS String
   | NOSI Integer
     deriving (Eq, Ord, Show)
-
 
 type Major = Integer
 type Minor = Integer
@@ -30,58 +33,47 @@ data SemVer =
 -- =========================================================
 -- Let the parsers begin...
 --
-parseValidChar :: Parser Char
-parseValidChar = upper <|> lower <|> digit <|> (char '-')
-testParseValidChar = parseString parseValidChar mempty
+parseSemVerChar :: Parser Char
+parseSemVerChar = upper <|> lower <|> digit <|> (char '-')
 
-parseReleaseStr :: Parser [Char]
-parseReleaseStr = some parseValidChar
-testParseReleaseStr = parseString parseReleaseStr mempty
+parseSemVerStr :: Parser [Char]
+parseSemVerStr = some parseSemVerChar
 
-parseNos :: Parser NumberOrString
-parseNos = ( NOSI <$> integer ) 
-             <|> ( NOSS <$> parseReleaseStr ) 
-testParseNos = parseString parseNos mempty
+parseNumberOrString :: Parser NumberOrString
+parseNumberOrString = 
+    ( NOSI <$> integer ) 
+    <|> ( NOSS <$> parseSemVerStr ) 
 
-parseRelease :: Parser [NumberOrString]
-parseRelease = do
-    x <- parseNos
-    xs <- many (( char '.' ) >> parseNos)
+parseNumberOrStrings :: Parser [NumberOrString]
+parseNumberOrStrings = do
+    x <- parseNumberOrString
+    xs <- many (( char '.' ) >> parseNumberOrString)
     return (x:xs)
-
-testParseRelease = parseString parseRelease mempty
-
-parseReleaseSeparator :: Parser Char
-parseReleaseSeparator = char '-'
-testparseReleaseSeparator = parseString parseReleaseSeparator mempty
-
-parseMetadataSeparator :: Parser Char
-parseMetadataSeparator = char '+'
 
 toEmpty :: Maybe [t] -> [t]
 toEmpty ( Just x ) = x
 toEmpty Nothing = []
 
-parseReleaseM :: Parser (Maybe [NumberOrString])
-parseReleaseM = optional (parseReleaseSeparator >> parseRelease)
-
-parseMetadataM :: Parser (Maybe [NumberOrString])
-parseMetadataM = optional (parseMetadataSeparator >> parseRelease)
-
-parseReleaseX = toEmpty <$> parseReleaseM
-testParseReleaseX =  parseString parseReleaseX mempty 
-
-parseMetadataX = toEmpty <$> parseMetadataM
+parseLabel :: Char -> Parser [NumberOrString]
+parseLabel separatorChar = 
+    toEmpty <$> 
+        optional ((char separatorChar) >> parseNumberOrStrings)
 
 parseSemVer :: Parser SemVer
 parseSemVer = SemVer 
                 <$> integer 
                 <*> ((char '.') >> integer) 
                 <*> ((char '.') >> integer) 
-                <*> parseReleaseX
-                <*> parseMetadataX
+                <*> parseLabel '-'
+                <*> parseLabel '+'
 
-testParseSemVer =  parseString parseSemVer mempty
+
+instance Eq a =>  Eq (Result  a) where
+    (Success x) == (Success y) =  x == y
+    (Failure x) == (Success y) = False
+    (Success x) == (Failure y) = False
+    (Failure x) == (Failure y) = True
+
 
 -- working examples:
 -- *SemVer> testParseSemVer "1.2.3-rere.r3r3.333+432.432.r3r3"
@@ -93,4 +85,23 @@ testParseSemVer =  parseString parseSemVer mempty
 -- *SemVer> testParseSemVer "1.2.3-54.654.t4t4.helloWorld"
 -- Success (SemVer 1 2 3 [NOSI 54,NOSI 654,NOSS "t4t4",NOSS "helloWorld"] [])
 
+
+main :: IO ()
+main = hspec $ do
+
+let testParseSemVer =  parseString parseSemVer mempty
+
+describe "parseSemVer" $ do
+    it "can parse Major.Minor.Patch" $ do
+        let semVer = "1.2.3"
+        let parsedSemVer = testParseSemVer semVer
+        -- print semVer
+        -- print parsedSemVer
+        
+        parsedSemVer `shouldBe` ( Success ( SemVer 1 2 3 [] [] ) )
+
+    it "can parse release and metadata" $ do
+        let semVer = "1.2.3-rere.r3r3.333+432.432.r3r3"
+        let parsedSemVer = testParseSemVer semVer
+        parsedSemVer `shouldBe` Success (SemVer 1 2 3 [NOSS "rere",NOSS "r3r3",NOSI 333] [NOSI 432,NOSI 432,NOSS "r3r3"])
 

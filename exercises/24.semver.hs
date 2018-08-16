@@ -49,24 +49,18 @@ instance Ord SemVer where
         (SemVer major1 minor1 patch1 _ _) 
         (SemVer major2 minor2 patch2 _ _) 
           | ( major1 == major2 ) && (minor1 == minor2) && (patch1 /= patch2)= compare patch1 patch2
-    -- TODO: if there is a pre-release, it makes it lesser than an equal one without pre-release.
-    
     compare 
         (SemVer major1 minor1 patch1 [] _) 
         (SemVer major2 minor2 patch2 [] _) 
           | ( major1 == major2 ) && (minor1 == minor2) && (patch1 == patch2) = EQ 
-
     compare 
         (SemVer major1 minor1 patch1 r1 _) 
         (SemVer major2 minor2 patch2 [] _) 
           | ( major1 == major2 ) && (minor1 == minor2) && (patch1 == patch2) = GT
-
     compare 
-        (SemVer major1 minor1 patch1 r1 _) 
-        (SemVer major2 minor2 patch2 r2 _) 
+        (SemVer major1 minor1 patch1 r1@(h1:_) _) 
+        (SemVer major2 minor2 patch2 r2@(h2:_) _) 
           | ( major1 == major2 ) && (minor1 == minor2) && (patch1 == patch2) = compare r1 r2
-
-    compare _ _  = EQ
 
 -- =========================================================
 -- Let the parsers begin...

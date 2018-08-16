@@ -32,11 +32,11 @@ toIntC :: Char -> Integer
 toIntC c = toInteger ( ( fromEnum c ) - ( fromEnum '0' ) )
 
 toInt :: [Char] -> Integer
-toInt cs = foldr (\a b -> b*10 + (toIntC a) ) 0 cs
-
+toInt cs = foldl (\b a -> b*10 + (toIntC a) ) 0 cs
 
 base10Integer :: Parser Integer
-base10Integer = read <$> (some parseDigit)
+-- base10Integer = read <$> (some parseDigit)
+base10Integer = toInt <$> (some parseDigit)
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y
@@ -50,6 +50,23 @@ main = hspec $ do
 
 let testParseDigit =  parseString parseDigit mempty
 let testParseInteger =  parseString base10Integer mempty
+
+describe "toIntC" $ do
+    it "can turn '1' into integer 1" $ do
+        (toIntC '1') `shouldBe` 1
+
+    it "can turn '0' into integer 0" $ do
+        (toIntC '0') `shouldBe` 0
+    it "can turn '9' into integer 9" $ do
+        (toIntC '9') `shouldBe` 9
+
+describe "toInt" $ do
+    it "can turn \"12\" into Integer 12" $ do
+        (toInt "12") `shouldBe` 12
+    it "can turn \"2\" into Integer 2" $ do
+        (toInt "2") `shouldBe` 2
+    it "can turn \"012\" into Integer 12" $ do
+        (toInt "012") `shouldBe` 12
 
 describe "parseDigit" $ do
     it "can parse 0" $ do

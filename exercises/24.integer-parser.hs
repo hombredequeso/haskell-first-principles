@@ -27,6 +27,7 @@ parseDigit :: Parser Char
 parseDigit = asum digitsP
 -- which is the same as:
 -- parseDigit = foldr (<|>) zeroParser digitsP
+--
 
 toIntC :: Char -> Integer
 toIntC c = toInteger ( ( fromEnum c ) - ( fromEnum '0' ) )
@@ -37,6 +38,19 @@ toInt cs = foldl (\b a -> b*10 + (toIntC a) ) 0 cs
 base10Integer :: Parser Integer
 -- base10Integer = read <$> (some parseDigit)
 base10Integer = toInt <$> (some parseDigit)
+
+-- Another way...
+
+parseDigitAsInt :: Parser Integer
+parseDigitAsInt = toIntC <$> parseDigit 
+
+parseDigitsToInts :: Parser [Integer]
+parseDigitsToInts = some parseDigitAsInt
+
+
+base10Integer' :: Parser Integer
+base10Integer' = foldl (\b a -> b*10 + a) 0 parseDigitsToInts
+
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y
@@ -67,6 +81,19 @@ describe "toInt" $ do
         (toInt "2") `shouldBe` 2
     it "can turn \"012\" into Integer 12" $ do
         (toInt "012") `shouldBe` 12
+
+describe "parseDigitAsInt" $ do
+    it "can parse a digit char into an Int" $ do
+        (parseString parseDigitAsInt mempty  "9") `shouldBe` Success(9)
+    it "can parse a string with a digit as start into an Int" $ do
+        (parseString parseDigitAsInt mempty   "9aa") `shouldBe` Success(9)
+    it "can parse a 0 digit char into an Int 0" $ do
+        (parseString parseDigitAsInt mempty  "0") `shouldBe` Success(0)
+
+describe "parseDigitsToInts" $ do
+    it "can parse digit string into an Ints" $ do
+        (parseString parseDigitsToInts mempty  "123") `shouldBe` Success([1,2,3])
+
 
 describe "parseDigit" $ do
     it "can parse 0" $ do

@@ -32,6 +32,9 @@ parseDigit = asum digitsP
 toIntC :: Char -> Integer
 toIntC c = toInteger ( ( fromEnum c ) - ( fromEnum '0' ) )
 
+toIntCL :: [Char] -> [Integer]
+toIntCL = fmap toIntC
+
 toInt :: [Char] -> Integer
 toInt cs = foldl (\b a -> b*10 + (toIntC a) ) 0 cs
 
@@ -39,18 +42,37 @@ base10Integer :: Parser Integer
 -- base10Integer = read <$> (some parseDigit)
 base10Integer = toInt <$> (some parseDigit)
 
--- Another way...
+negativeSignParser :: Parser Integer
+negativeSignParser = (\_ -> -1) <$> char '-' 
+
+negativeBase10IntegerParser :: Parser Integer
+negativeBase10IntegerParser = negativeSignParser >> base10Integer' >>= return . negate
+
+base10Integer' :: Parser Integer
+base10Integer' = base10Integer <|> negativeBase10IntegerParser
+
+-- Some unused compilable experiments (largely gone wrong, but interesting in their own right)!
+
+firstDigitParser :: Parser Integer
+firstDigitParser = negativeSignParser <|> ( toIntC <$>parseDigit )
+
+digitsParser :: Parser [Char]
+digitsParser = some parseDigit
+
+digitsAsIntegerParser :: Parser [Integer]
+digitsAsIntegerParser = toIntCL <$> digitsParser
+
+negOrPosDigitsParser :: Parser [Integer]
+negOrPosDigitsParser = (liftA2 (:)) firstDigitParser digitsAsIntegerParser
+
+addNextDecimalPlace :: Integer -> Integer -> Integer
+addNextDecimalPlace total next = (total * 10) + next
 
 parseDigitAsInt :: Parser Integer
 parseDigitAsInt = toIntC <$> parseDigit 
 
 parseDigitsToInts :: Parser [Integer]
 parseDigitsToInts = some parseDigitAsInt
-
-
-base10Integer' :: Parser Integer
-base10Integer' = foldl (\b a -> b*10 + a) 0 parseDigitsToInts
-
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y
@@ -64,6 +86,30 @@ main = hspec $ do
 
 let testParseDigit =  parseString parseDigit mempty
 let testParseInteger =  parseString base10Integer mempty
+
+
+describe "addNextDecimalPlace" $ do
+    it "adds new digit onto lowest decimal place of current integer" $ do
+        (addNextDecimalPlace 0 1) `shouldBe` 1
+        (addNextDecimalPlace 1 2) `shouldBe` 12
+
+
+describe "firstDigitParser" $ do
+    let testFirstDigitParser = parseString firstDigitParser mempty
+
+    it "produces -1 when parsing negative sign" $ do
+        (testFirstDigitParser "-") `shouldBe` Success(-1)
+
+    it "produces integer digit when parsing a digit character" $ do
+        (testFirstDigitParser "7") `shouldBe` Success(7)
+
+describe "negativeSignParser" $ do
+
+    let testNegativeSignParser =  parseString negativeSignParser mempty
+
+    it "turns negative sign into -1" $ do
+        (testNegativeSignParser "-") `shouldBe` Success(-1)
+
 
 describe "toIntC" $ do
     it "can turn '1' into integer 1" $ do
@@ -95,6 +141,7 @@ describe "parseDigitsToInts" $ do
         (parseString parseDigitsToInts mempty  "123") `shouldBe` Success([1,2,3])
 
 
+
 describe "parseDigit" $ do
     it "can parse 0" $ do
         let a = testParseDigit "0"
@@ -115,3 +162,23 @@ describe "base10Integer" $ do
         let i = testParseInteger "12"
         i `shouldBe` Success(12)
 
+
+describe "negativeBase10IntegerParser" $ do
+
+    let testNegativeBase10IntegerParser = parseString negativeBase10IntegerParser mempty
+
+    it "can parse a negative integer" $ do
+        let i = testNegativeBase10IntegerParser "-12"
+        i `shouldBe` Success(-12)
+
+
+describe "base10Integer'" $ do
+
+    let testBase10Integer' =  parseString base10Integer' mempty
+    it "can parse a simple integer" $ do
+        let i = testBase10Integer' "12"
+        i `shouldBe` Success(12)
+
+    it "can parse a negative integer" $ do
+        let i = testBase10Integer' "-12"
+        i `shouldBe` Success(-12)

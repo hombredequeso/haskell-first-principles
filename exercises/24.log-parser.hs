@@ -66,13 +66,17 @@ parseTimeOfDay =
                 (fromIntegral min) 
                 0)
 
+parseComment :: Parser Comment
+parseComment = do
+    _ <- string "--"
+    _ <- many (char ' ')
+    comment <- many (noneOf "\n")
+    return $ comment
+
 parseActivity :: Parser Activity
 parseActivity = 
     try (manyTill (noneOf "\n") parseComment) <|>
         some (noneOf "\n")
-
-parseActivityWithTrim :: Parser Activity
-parseActivityWithTrim = strip <$> parseActivity
 
 parseEvent :: Parser LogEvent
 parseEvent = do
@@ -92,20 +96,17 @@ parseEventLine = do
 
 parseEventLineThrowAwayComments :: Parser LogEvent
 parseEventLineThrowAwayComments = 
-    (many (parseComment >> skipEOL)) >> parseEventLine
+    (many (parseComment >> whiteSpace)) >> parseEventLine
 
 parseLog :: Parser Log
 parseLog = do
-    skipEOL
+    -- Initially, throw away all whiteSpace
+    whiteSpace
     some parseEventLineThrowAwayComments
 
-parseComment :: Parser Comment
-parseComment = do
-    _ <- string "--"
-    _ <- many (char ' ')
-    comment <- many (noneOf "\n")
-    return $ comment
 
+-------------------------------------------------------------------
+-- Test Logs
 -------------------------------------------------------------------
     
 oneLineLogWithComment :: String

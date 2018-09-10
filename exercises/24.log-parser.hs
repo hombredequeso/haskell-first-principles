@@ -43,11 +43,23 @@ instance Eq a =>  Eq (Result  a) where
 
 
 
+-- parseTimeOfDay, 'do' notation edition:
+-- parseTimeOfDay :: Parser TimeOfDay
+-- parseTimeOfDay = do
+--     hour <- natural
+--     _ <- char ':'
+--     min <- natural
+--     return 
+--         (TimeOfDay 
+--                 (fromIntegral hour)
+--                 (fromIntegral min) 
+--                 0)
+
 parseTimeOfDay :: Parser TimeOfDay
-parseTimeOfDay = do
-    hour <- natural
-    _ <- char ':'
-    min <- natural
+parseTimeOfDay = 
+    natural >>= \hour ->
+    char ':' >>
+    natural >>= \min ->
     return 
         (TimeOfDay 
                 (fromIntegral hour)
@@ -65,7 +77,7 @@ parseActivityWithTrim = strip <$> parseActivity
 parseEvent :: Parser LogEvent
 parseEvent = do
     time <- parseTimeOfDay
-    desc <- parseActivityWithTrim
+    desc <- rstrip <$> parseActivity
     return $ LogEvent time desc
 
 skipEOL :: Parser ()
@@ -75,6 +87,7 @@ parseEventLine :: Parser LogEvent
 parseEventLine = do
     line <- parseEvent
     skipEOL
+    whiteSpace
     return line
 
 parseEventLineThrowAwayComments :: Parser LogEvent
@@ -104,6 +117,10 @@ twoLineLog = [r|08:00 Breakfast
 09:00 Morning Tea
     |]
 
+twoLineLogWithMinimumEols :: String
+twoLineLogWithMinimumEols = [r|08:00 Breakfast
+09:00 Morning Tea|]
+
 logStartingWithNewLine :: String
 logStartingWithNewLine = [r|
 08:00 Breakfast
@@ -128,6 +145,12 @@ logWithManyComments = [r|
 09:00 Morning Tea
 |]
 
+logWithSomeOddWhitespace :: String
+logWithSomeOddWhitespace = [r|
+08:00       Breakfast     
+    09:00 Morning Tea       |]
+
+
 logCommentLine :: String
 logCommentLine = [r|--comment 123
 |]
@@ -136,6 +159,7 @@ lineEndingWithComment :: String
 lineEndingWithComment = [r|08:00 Breakfast -- it was yummy
 09:00 Morning Tea
 |]
+
 
 
 main :: IO ()
@@ -187,6 +211,27 @@ main = hspec $ do
                     ]
             (testParseLog twoLineLog) `shouldBe`
                 Success expectedLog
+
+        it "Parses a two line log file with no start of end Eols" $ do
+
+            let expectedLog = 
+                    [
+                        LogEvent (TimeOfDay 8 0 0) "Breakfast",
+                        LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                    ]
+            (testParseLog twoLineLogWithMinimumEols) `shouldBe`
+                Success expectedLog
+
+        it "Parses a two line log file with various odd whitespace" $ do
+
+            let expectedLog = 
+                    [
+                        LogEvent (TimeOfDay 8 0 0) "Breakfast",
+                        LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                    ]
+            (testParseLog logWithSomeOddWhitespace) `shouldBe`
+                Success expectedLog
+
 
         it "Parses a log file beginning with empty line" $ do
             let expectedLog = 

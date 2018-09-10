@@ -68,6 +68,13 @@ separatorParser = char ' ' <|> char '-'
 prefixParser :: Parser String
 prefixParser = string "1-"
 
+passThroughParser :: Parser ()
+passThroughParser = pure ()
+
+sepParser :: Parser Char
+sepParser = char '-'
+
+optionalSepParser = passThroughParser <|> (() <$ sepParser)
 
 -----------------------------------------------------------------------------------
     

@@ -68,7 +68,8 @@ parseTimeOfDay =
 
 parseComment :: Parser Comment
 parseComment = 
-    string "--" >> many (char ' ') >>
+    string "--" >> 
+    many (char ' ') >>
     many (noneOf "\n")
 
 parseActivity :: Parser Activity
@@ -89,13 +90,11 @@ parseEventLine :: Parser LogEvent
 parseEventLine = do
     (many (parseComment >> whiteSpace))
     line <- parseEvent
-    skipEOL
     whiteSpace
     return line
 
 parseLog :: Parser Log
 parseLog = do
-    -- Initially, throw away all whiteSpace
     whiteSpace
     some parseEventLine
 
@@ -156,6 +155,21 @@ lineEndingWithComment = [r|08:00 Breakfast -- it was yummy
 09:00 Morning Tea
 |]
 
+whiteSpaceAndCommentsThenOneEvent :: String
+whiteSpaceAndCommentsThenOneEvent = [r|
+    -- A comment
+
+-- block of comments
+-- block
+-- block
+
+-- Another comment
+--
+
+-- whatevs
+
+08:00 Breakfast
+|]
 
 
 main :: IO ()
@@ -269,3 +283,11 @@ main = hspec $ do
             (testParseLog logWithManyComments) `shouldBe`
                 Success expectedLog
 
+
+        it "Parses a log file with much whitespace and comments" $ do
+            let expectedLog = 
+                    [
+                        LogEvent (TimeOfDay 8 0 0) "Breakfast"
+                    ]
+            (testParseLog whiteSpaceAndCommentsThenOneEvent) `shouldBe`
+                Success expectedLog

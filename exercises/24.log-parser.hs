@@ -67,11 +67,9 @@ parseTimeOfDay =
                 0)
 
 parseComment :: Parser Comment
-parseComment = do
-    _ <- string "--"
-    _ <- many (char ' ')
-    comment <- many (noneOf "\n")
-    return $ comment
+parseComment = 
+    string "--" >> many (char ' ') >>
+    many (noneOf "\n")
 
 parseActivity :: Parser Activity
 parseActivity = 
@@ -89,20 +87,17 @@ skipEOL = skipMany (oneOf "\n")
 
 parseEventLine :: Parser LogEvent
 parseEventLine = do
+    (many (parseComment >> whiteSpace))
     line <- parseEvent
     skipEOL
     whiteSpace
     return line
 
-parseEventLineThrowAwayComments :: Parser LogEvent
-parseEventLineThrowAwayComments = 
-    (many (parseComment >> whiteSpace)) >> parseEventLine
-
 parseLog :: Parser Log
 parseLog = do
     -- Initially, throw away all whiteSpace
     whiteSpace
-    some parseEventLineThrowAwayComments
+    some parseEventLine
 
 
 -------------------------------------------------------------------

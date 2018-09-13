@@ -46,6 +46,13 @@ data LoggingLine =
 type Log = [LogEvent]
 type Comment = String
 type Activity = String
+type CompleteEvent = (Day, TimeOfDay, String)
+
+toCompleteEvents :: [LoggingLine] -> [CompleteEvent]
+toCompleteEvents = toCompleteEventsInner Nothing
+
+toCompleteEventsInner :: Maybe Day -> [LoggingLine] -> [CompleteEvent]
+toCompleteEventsInner = undefined 
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y
@@ -130,9 +137,6 @@ parseLogEvent = do
     time <- parseTimeOfDay
     desc <- rstrip <$> parseActivity
     return $ LogEvent time desc
-
-skipEOL :: Parser ()
-skipEOL = skipMany (oneOf "\n")
 
 
 -- parseLog :: Parser Log

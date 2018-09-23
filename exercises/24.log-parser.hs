@@ -48,6 +48,11 @@ type Activity = String
 type Event = (Day, TimeOfDay, String)
 type TimedEvent = (Event, DiffTime)
 
+-- On dealing with time in Haskell see:
+-- https://two-wrongs.com/haskell-time-library-tutorial
+-- On realToFrac see:
+-- https://stackoverflow.com/questions/25806378/how-do-i-convert-difftime-to-nominaldifftime
+
 toTimedEvents :: [Event] -> [TimedEvent]
 toTimedEvents (h1 : h2 : t) = (toTimedEvent h1 h2) : toTimedEvents (h2: t)
 toTimedEvents _ = []

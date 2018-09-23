@@ -29,30 +29,44 @@ import Data.String.Utils
 -- See esp:
 -- https://hackage.haskell.org/package/parsers-0.12.9/docs/Text-Parser-Combinators.html
 
-data LogEvent =
-    LogEvent TimeOfDay String
+data EventLine =
+    EventLine TimeOfDay String
     deriving (Show, Eq)
 
-data DateEvent =
-    DateEvent Day
+data DateLine =
+    DateLine Day
     deriving (Show, Eq)
 
-data LoggingLine =
-    LogLine LogEvent
-    | LogDate DateEvent
+data LogLine =
+    LogEventLine EventLine
+    | LogDateLine DateLine
     deriving (Show, Eq)
 
-
-type Log = [LogEvent]
+type Log = [EventLine]
 type Comment = String
 type Activity = String
-type CompleteEvent = (Day, TimeOfDay, String)
+type Event = (Day, TimeOfDay, String)
+type TimedEvent = (Event, DiffTime)
 
-toCompleteEvents :: [LoggingLine] -> [CompleteEvent]
-toCompleteEvents = toCompleteEventsInner Nothing
+toTimedEvents :: [Event] -> [TimedEvent]
+toTimedEvents (h1 : h2 : t) = (toTimedEvent h1 h2) : toTimedEvents (h2: t)
+toTimedEvents _ = []
 
-toCompleteEventsInner :: Maybe Day -> [LoggingLine] -> [CompleteEvent]
-toCompleteEventsInner = undefined 
+toTimedEvent :: Event -> Event -> TimedEvent
+toTimedEvent (d1, t1, s1) (d2, t2, s2) = 
+    -- let duration = secondsToDiffTime 60 in
+                                    let duration = realToFrac ( diffUTCTime (UTCTime d2 ( timeOfDayToTime t2 )) (UTCTime d1 (timeOfDayToTime t1 ))) in
+                                             ((d1,t1,s1), duration)
+
+toEvents :: [LogLine] -> [Event]
+toEvents = toEventsInner Nothing
+
+toEventsInner :: Maybe Day -> [LogLine] -> [Event]
+toEventsInner _ ((LogDateLine (DateLine day)):t)  = 
+    toEventsInner (Just day) t
+toEventsInner (Just day) ((LogEventLine (EventLine timeOfDay event)):t) = 
+    (day, timeOfDay, event) : toEventsInner (Just day) t
+toEventsInner _ _ = []
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y
@@ -60,19 +74,19 @@ instance Eq a =>  Eq (Result  a) where
     (Success x) == (Failure y) = False
     (Failure x) == (Failure y) = True
 
-parseLog :: Parser [LoggingLine]
+parseLog :: Parser [LogLine]
 parseLog = do
     whiteSpace
-    some parseLoggingLine
+    some parseLogLine
 
-parseLoggingLine :: Parser LoggingLine
-parseLoggingLine = (try (LogDate <$> parseDateLine))
-                   <|> LogLine <$> parseEventLine
+parseLogLine :: Parser LogLine
+parseLogLine = (try (LogDateLine <$> parseDateLine))
+                   <|> LogEventLine <$> parseEventLine
 
-parseDateLine:: Parser DateEvent
-parseDateLine = parseRemovingWhitespace (DateEvent <$> parseDate)
+parseDateLine:: Parser DateLine
+parseDateLine = parseRemovingWhitespace (DateLine <$> parseDay)
 
-parseEventLine :: Parser LogEvent
+parseEventLine :: Parser EventLine
 parseEventLine = parseRemovingWhitespace parseLogEvent
 
 parseRemovingWhitespace :: Parser t -> Parser t
@@ -105,8 +119,8 @@ parseTimeOfDay =
                 (fromIntegral min) 
                 0)
 
-parseDate :: Parser Day
-parseDate =
+parseDay :: Parser Day
+parseDay =
     char '#' >>
     many (char ' ') >>
     natural >>= \year ->
@@ -132,11 +146,11 @@ parseActivity =
     try (manyTill (noneOf "\n") parseComment) <|>
         some (noneOf "\n")
 
-parseLogEvent :: Parser LogEvent
+parseLogEvent :: Parser EventLine
 parseLogEvent = do
     time <- parseTimeOfDay
     desc <- rstrip <$> parseActivity
-    return $ LogEvent time desc
+    return $ EventLine time desc
 
 
 -- parseLog :: Parser Log
@@ -144,10 +158,10 @@ parseLogEvent = do
 --     whiteSpace
 --     some parseEventLine
 
-durationBetweenEvents :: LogEvent -> LogEvent -> DiffTime
-durationBetweenEvents (LogEvent t1 _) (LogEvent t2 _)= undefined
+durationBetweenEvents :: EventLine -> EventLine -> DiffTime
+durationBetweenEvents (EventLine t1 _) (EventLine t2 _)= undefined
 
-toLogWithDuration :: Log -> [(LogEvent, Maybe DiffTime)]
+toLogWithDuration :: Log -> [(EventLine, Maybe DiffTime)]
 toLogWithDuration [] = []
 toLogWithDuration (h : []) = [(h, Nothing)]
 toLogWithDuration (h1 : h2 : t) = (h1, Just (durationBetweenEvents h1 h2)) : toLogWithDuration (h2 : t)
@@ -226,8 +240,8 @@ whiteSpaceAndCommentsThenOneEvent = [r|
 08:00 Breakfast
 |]
 
-logDateLine :: String
-logDateLine = [r|# 2018-07-24
+logWithDate :: String
+logWithDate = [r|# 2018-07-24
 |]
 
 logDateAndEvent :: String
@@ -295,12 +309,12 @@ main = hspec $ do
         let testParseEvent = parseString parseLogEvent mempty
 
         it "Parses a simple 'time description line'" $ do
-            let expectedEvent = LogEvent (TimeOfDay 8 0 0) "Breakfast"
+            let expectedEvent = EventLine (TimeOfDay 8 0 0) "Breakfast"
             (testParseEvent "08:00 Breakfast") `shouldBe` 
                 Success expectedEvent
 
         it "ends where comment starts" $ do
-            let expectedEvent = LogEvent (TimeOfDay 8 0 0) "Breakfast"
+            let expectedEvent = EventLine (TimeOfDay 8 0 0) "Breakfast"
             (testParseEvent oneLineLogWithComment) `shouldBe` 
                 Success expectedEvent
 
@@ -311,8 +325,8 @@ main = hspec $ do
 
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog twoLineLog) `shouldBe`
                 Success expectedLog
@@ -321,8 +335,8 @@ main = hspec $ do
 
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog twoLineLogWithMinimumEols) `shouldBe`
                 Success expectedLog
@@ -331,8 +345,8 @@ main = hspec $ do
 
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog logWithSomeOddWhitespace) `shouldBe`
                 Success expectedLog
@@ -341,8 +355,8 @@ main = hspec $ do
         it "Parses a log file beginning with empty line" $ do
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog logStartingWithNewLine) `shouldBe`
                 Success expectedLog
@@ -351,8 +365,8 @@ main = hspec $ do
         it "Ignores a comment at the end of a log entry" $ do
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog lineEndingWithComment) `shouldBe`
                 Success expectedLog
@@ -362,8 +376,8 @@ main = hspec $ do
         it "Parses a log file with comment line" $ do
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog logWithComment) `shouldBe`
                 Success expectedLog
@@ -372,8 +386,8 @@ main = hspec $ do
         it "Parses a log file with many comment lines" $ do
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea"
                     ]
             (testParseLog logWithManyComments) `shouldBe`
                 Success expectedLog
@@ -382,14 +396,14 @@ main = hspec $ do
         it "Parses a log file with much whitespace and comments" $ do
             let expectedLog = 
                     [
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast"
                     ]
             (testParseLog whiteSpaceAndCommentsThenOneEvent) `shouldBe`
                 Success expectedLog
 
 
-    describe "parseDate" $ do
-        let testParseDate = parseString parseDate mempty
+    describe "parseDay" $ do
+        let testParseDate = parseString parseDay mempty
 
         it "Parses a date correctly" $ do
 
@@ -400,21 +414,21 @@ main = hspec $ do
             (testParseDate "# 2018-07-24") `shouldBe`
                 Success expectedDate
 
-    describe "parseLoggingLine" $ do
-        let testParseLoggingLine = parseString parseLoggingLine mempty
+    describe "parseLogLine" $ do
+        let testParseLoggingLine = parseString parseLogLine mempty
 
         it "Parses a date line correctly" $ do
             let expectedDate = (fromGregorian 
                     2018 
                     ( fromIntegral 7 ) 
                     ( fromIntegral 24 ))
-            let expectedResult = LogDate $ DateEvent expectedDate
-            let result = testParseLoggingLine logDateLine
+            let expectedResult = LogDateLine $ DateLine expectedDate
+            let result = testParseLoggingLine logWithDate
             result `shouldBe` Success expectedResult
 
         it "Parses a event line correctly" $ do
             let expectedResult = 
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast"
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast"
             let result = testParseLoggingLine oneLineLogWithComment
             result `shouldBe` Success expectedResult
 
@@ -427,8 +441,8 @@ main = hspec $ do
                     ( fromIntegral 24 ))
             let expectedResult = 
                     [
-                        LogDate $ DateEvent expectedDate,
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast"
+                        LogDateLine $ DateLine expectedDate,
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast"
                     ]
             let result = testParseLog logDateAndEvent
             result `shouldBe` Success expectedResult
@@ -445,15 +459,15 @@ main = hspec $ do
                     ( fromIntegral 25 ))
             let expectedResult = 
                     [
-                        LogDate $ DateEvent expectedDate1,
-                        LogLine $ LogEvent (TimeOfDay 8 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Morning Tea",
-                        LogLine $ LogEvent (TimeOfDay 10 0 0) "Sleep",
-                        LogDate $ DateEvent expectedDate2,
-                        LogLine $ LogEvent (TimeOfDay 7 0 0) "Breakfast",
-                        LogLine $ LogEvent (TimeOfDay 9 0 0) "Work",
-                        LogLine $ LogEvent (TimeOfDay 11 30 0) "Morning Tea",
-                        LogLine $ LogEvent (TimeOfDay 22 30 0) "Sleep"
+                        LogDateLine $ DateLine expectedDate1,
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea",
+                        LogEventLine $ EventLine (TimeOfDay 10 0 0) "Sleep",
+                        LogDateLine $ DateLine expectedDate2,
+                        LogEventLine $ EventLine (TimeOfDay 7 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Work",
+                        LogEventLine $ EventLine (TimeOfDay 11 30 0) "Morning Tea",
+                        LogEventLine $ EventLine (TimeOfDay 22 30 0) "Sleep"
                     ]
 
             let result = testParseLog logSample
@@ -462,3 +476,106 @@ main = hspec $ do
 
             let resultFromCommentedLog = testParseLog logSampleWithComments
             resultFromCommentedLog `shouldBe` Success expectedResult
+
+
+
+    let someDate = (fromGregorian 
+            2018 
+            ( fromIntegral 7 ) 
+            ( fromIntegral 24 ))
+
+    describe "toEvents" $ do
+        it "returns empty for empty" $ do
+            toEvents [] `shouldBe` []
+
+        it "returns empty for date line only" $ do
+            toEvents [
+                        LogDateLine $ DateLine someDate
+                     ]
+                     `shouldBe` []
+
+        it "returns empty for event line only" $ do
+            toEvents [
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast"
+                     ]
+                     `shouldBe` []
+        
+        it "returns one event for date and event line only" $ do
+            let someDate = (fromGregorian 
+                    2018 
+                    ( fromIntegral 7 ) 
+                    ( fromIntegral 24 ))
+            toEvents [
+                        LogDateLine $ DateLine someDate,
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast"
+                     ]
+                     `shouldBe` [(someDate, (TimeOfDay 8 0 0), "Breakfast")]
+        
+        it "returns one event for date and 2 event line only" $ do
+            let someDate = (fromGregorian 
+                    2018 
+                    ( fromIntegral 7 ) 
+                    ( fromIntegral 24 ))
+            toEvents [
+                        LogDateLine $ DateLine someDate,
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 13 0 0) "Lunch"
+                     ]
+                     `shouldBe` [
+                        (someDate, (TimeOfDay 8 0 0), "Breakfast"),
+                        (someDate, (TimeOfDay 13 0 0), "Lunch")
+                      ]
+        
+        it "Parses a complete sample log" $ do
+            let expectedDate1 = (fromGregorian 
+                    2018 
+                    ( fromIntegral 7 ) 
+                    ( fromIntegral 24 ))
+            let expectedDate2 = (fromGregorian 
+                    2018 
+                    ( fromIntegral 7 ) 
+                    ( fromIntegral 25 ))
+            toEvents [
+                        LogDateLine $ DateLine expectedDate1,
+                        LogEventLine $ EventLine (TimeOfDay 8 0 0) "Breakfast",
+                        LogEventLine $ EventLine (TimeOfDay 9 0 0) "Morning Tea",
+                        LogDateLine $ DateLine expectedDate2,
+                        LogEventLine $ EventLine (TimeOfDay 7 0 0) "Breakfast2"
+                    ]
+                    `shouldBe` [
+                        (expectedDate1, (TimeOfDay 8 0 0), "Breakfast"),
+                        (expectedDate1, (TimeOfDay 9 0 0), "Morning Tea"),
+                        (expectedDate2, (TimeOfDay 7 0 0), "Breakfast2")
+                               ]
+
+
+    describe "toTimedEvents" $ do
+        it "returns empty for empty" $ do
+            toTimedEvents [] `shouldBe` []
+
+        it "returns empty for a single event" $ do
+            let expectedDate1 = (fromGregorian 
+                    2018 
+                    ( fromIntegral 7 ) 
+                    ( fromIntegral 24 ))
+            toTimedEvents   [
+                            (expectedDate1, (TimeOfDay 8 0 0), "Breakfast")
+                            ]
+                `shouldBe` []
+
+        it "returns expected event and time for 2 events in log" $ do
+            let expectedDate1 = fromGregorian 
+                                    2018 
+                                    ( fromIntegral 7 ) 
+                                    ( fromIntegral 24 )
+            let duration = (secondsToDiffTime 60 * 60)
+            toTimedEvents   
+                [
+                    (expectedDate1, (TimeOfDay 8 0 0), "Breakfast"),
+                    (expectedDate1, (TimeOfDay 9 0 0), "Morning Tea")
+                ]
+                `shouldBe` 
+                    [
+                        ((expectedDate1, (TimeOfDay 8 0 0), "Breakfast"), duration)
+                    ]
+

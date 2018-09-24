@@ -5,6 +5,7 @@ module LogParser where
 
 import Control.Applicative
 import Text.Trifecta
+import Text.Printf
 import Data.Time.LocalTime  -- TimeOfDay
 import Data.Time.Clock      -- DiffTime
 import Data.Time            -- Day
@@ -31,7 +32,13 @@ import Data.String.Utils
 
 data EventLine =
     EventLine TimeOfDay String
-    deriving (Show, Eq)
+    deriving (Eq)
+
+formatLogTime :: TimeOfDay -> String
+formatLogTime t = printf "%02d:%02d" (todHour t) (todMin t) 
+
+instance Show EventLine where
+    show (EventLine time desc) = ( formatLogTime time) ++ " " ++ desc
 
 data DateLine =
     DateLine Day
@@ -583,4 +590,17 @@ main = hspec $ do
                     [
                         ((expectedDate1, (TimeOfDay 8 0 0), "Breakfast"), duration)
                     ]
+
+    describe "show EventLine produces a valid log event line" $ do
+        it "returns a valid log line" $ do
+            let timeOfDay = (TimeOfDay 8 0 0)
+            let eventLine = EventLine timeOfDay "event description"
+            show eventLine `shouldBe` "08:00 event description"
+
+    describe "formatLogTime" $ do
+        it "return valid log time for 1:2:3" $ do
+            formatLogTime (TimeOfDay 1 2 3) `shouldBe` "01:02"
+
+        it "return valid log time for 14:45:55" $ do
+            formatLogTime (TimeOfDay 14 45 55) `shouldBe` "14:45"
 

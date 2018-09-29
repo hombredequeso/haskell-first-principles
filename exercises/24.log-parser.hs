@@ -16,6 +16,13 @@ import Test.Hspec
 -- import Data.Char
 import Data.String.Utils
 
+
+import Test.QuickCheck  hiding (Failure, Success, Result)
+import Test.QuickCheck.Instances.Time
+
+import Data.Char
+import Data.Text hiding (foldr)
+import Data.Monoid
 -- Notes on helpful combining functions:
 --
 -- some: one or more
@@ -34,26 +41,69 @@ data EventLine =
     EventLine TimeOfDay String
     deriving (Eq)
 
+instance Arbitrary EventLine where
+    arbitrary = EventLine <$> arbitrary <*> logStringGenerator
+
+
+data DateLine =
+    DateLine Day
+    deriving (Eq)
+
+instance Arbitrary DateLine where
+    arbitrary = DateLine <$> arbitrary
+
+instance Arbitrary LogLine where
+    arbitrary = frequency [
+        (1, LogDateLine <$> arbitrary),
+        (4, LogEventLine <$> arbitrary)]
+
+data LogLine =
+    LogEventLine EventLine
+    | LogDateLine DateLine
+    deriving (Eq)
+
 formatLogTime :: TimeOfDay -> String
 formatLogTime t = printf "%02d:%02d" (todHour t) (todMin t) 
 
 instance Show EventLine where
     show (EventLine time desc) = ( formatLogTime time) ++ " " ++ desc
 
-data DateLine =
-    DateLine Day
-    deriving (Show, Eq)
 
-data LogLine =
-    LogEventLine EventLine
-    | LogDateLine DateLine
-    deriving (Show, Eq)
 
-type Log = [EventLine]
+newtype LogLines = LogOf [LogLine]
+
+instance Arbitrary LogLines where
+    arbitrary = do
+        len <- choose (20, 50)
+        logLines <- vectorOf len (arbitrary :: Gen LogLine)
+        return (LogOf logLines)
+
+instance Show LogLines where
+    show (LogOf ls) = foldr (\l acc -> (show l) ++ "\n" ++ acc) "" ls 
+
+
+instance Show LogLine where
+    show (LogEventLine l) = show l
+    show (LogDateLine l) = show l
+
+instance Show DateLine where
+    show (DateLine day) = let (y,m,d) = toGregorian day in
+        printf "# %04d-%02d-%02d" y m d
+
+-- type Log = [EventLine]
 type Comment = String
 type Activity = String
 type Event = (Day, TimeOfDay, String)
 type TimedEvent = (Event, DiffTime)
+
+newtype Log = Log [EventLine]
+
+showLine :: EventLine -> String
+showLine el = show el
+
+instance Show Log where
+    show (Log eventLines) = foldr (\l acc -> (showLine l) ++ acc) "" eventLines 
+
 
 -- On dealing with time in Haskell see:
 -- https://two-wrongs.com/haskell-time-library-tutorial
@@ -174,9 +224,60 @@ durationBetweenEvents :: EventLine -> EventLine -> DiffTime
 durationBetweenEvents (EventLine t1 _) (EventLine t2 _)= undefined
 
 toLogWithDuration :: Log -> [(EventLine, Maybe DiffTime)]
-toLogWithDuration [] = []
-toLogWithDuration (h : []) = [(h, Nothing)]
-toLogWithDuration (h1 : h2 : t) = (h1, Just (durationBetweenEvents h1 h2)) : toLogWithDuration (h2 : t)
+toLogWithDuration (Log []) = []
+toLogWithDuration (Log (h : [])) = [(h, Nothing)]
+toLogWithDuration (Log (h1 : h2 : t)) = (h1, Just (durationBetweenEvents h1 h2)) : toLogWithDuration  ( Log (h2 : t) )
+
+
+-------------------------------------------------------------------
+    -- QuickCheck random log generation
+-------------------------------------------------------------------
+
+isValidLogCharacter :: Char -> Bool
+isValidLogCharacter c = isAscii c && (isPrint c || c == '\t')
+
+hasValidLogCharacters :: String -> Bool
+hasValidLogCharacters = getAll . mconcat . (fmap ( All . isValidLogCharacter ) )
+
+startsWithSpace :: String -> Bool
+startsWithSpace "" = False
+startsWithSpace (c:_) = isSpace c
+
+endsWithSpace :: String -> Bool
+endsWithSpace "" = False
+endsWithSpace (c:[]) = isSpace c
+endsWithSpace (c1:c2:xs) = endsWithSpace (c2:xs)
+
+validLogLineRules :: [String -> Bool]
+validLogLineRules =                
+    [
+        ( not . hasStartOfComment ),
+        ( not . startsWithSpace ),
+        ( not . endsWithSpace ),
+        hasValidLogCharacters,
+        -- greaterThanZeroLength,
+        isNotAllWhitespace
+    ] 
+
+greaterThanZeroLength :: String -> Bool
+greaterThanZeroLength s = 0 < Prelude.length s
+
+
+isNotAllWhitespace :: String -> Bool
+isNotAllWhitespace s = getAny $ mconcat ( fmap (Any . not . isSpace ) s )
+
+isValidLogLine :: String -> Bool
+isValidLogLine s =  getAll $ mconcat 
+                        (fmap 
+                            (\rule -> (All . rule)s ) 
+                            validLogLineRules)
+
+hasStartOfComment :: String -> Bool
+hasStartOfComment = (isInfixOf "--") . pack
+
+logStringGenerator :: Gen String
+logStringGenerator = suchThat arbitrary isValidLogLine
+
 
 -------------------------------------------------------------------
 -- Test Logs
@@ -603,4 +704,77 @@ main = hspec $ do
 
         it "return valid log time for 14:45:55" $ do
             formatLogTime (TimeOfDay 14 45 55) `shouldBe` "14:45"
+
+    describe "Show DateLine" $ do
+        it "returns a string formatted in logging style" $ do
+            let date = fromGregorian 
+                                    2018 
+                                    ( fromIntegral 7 ) 
+                                    ( fromIntegral 24 )
+            show (DateLine date) `shouldBe` "# 2018-07-24"
+
+    let getLogLine = 
+            let timeOfDay = (TimeOfDay 8 0 0) in
+            let eventLine = EventLine timeOfDay "event description" in
+            LogEventLine eventLine 
+
+    let getLogDateLine =
+            let date = fromGregorian 
+                                    2018 
+                                    ( fromIntegral 7 ) 
+                                    ( fromIntegral 24 ) in
+            LogDateLine $ DateLine date
+
+
+    describe "Show LogLine" $ do
+        it "shows a LogEventLine correctly" $ do
+            let logLine = getLogLine
+            show logLine `shouldBe` "08:00 event description"
+
+        it "shows a LogDateLine correctly" $ do
+            let date = fromGregorian 
+                                    2018 
+                                    ( fromIntegral 7 ) 
+                                    ( fromIntegral 24 )
+            show (LogDateLine $ DateLine date) `shouldBe` "# 2018-07-24"
+
+    let expectedLogLines = [r|# 2018-07-24
+08:00 event description
+|]
+
+    describe "Show LogLines" $ do
+        it "produces a valid log" $ do
+            let logLines = LogOf [getLogDateLine, getLogLine]
+            show logLines `shouldBe` expectedLogLines
+
+    -- Quickcheck tests.
+    
+    describe "QuickCheck log line production" $ do
+
+        let testParseLog = parseString parseLog mempty
+
+        it "can generate a random log date line" $ do
+            d <- generate (arbitrary :: Gen Day)
+            let ldl = LogDateLine $ DateLine d
+            print ldl
+            
+        it "can generate a random log event line" $ do
+            s <- generate logStringGenerator
+            print s
+
+        it "can generate a LogLine" $ do
+            sample (arbitrary :: Gen LogLine)
+
+        it "can randomly generate log lines and show them" $ do
+            lls <- generate (arbitrary :: Gen LogLines)
+            print lls
+
+        -- it "log lines round trip" $ do
+        --     lls <- generate (arbitrary :: Gen LogLines)     -- LogLines
+        --     let logStr = show lls
+        --     let parsedLog = testParseLog logStr             -- Parser [LogLine]
+        --     let ( LogOf lls2 ) = lls
+
+        --     parsedLog `shouldBe` Success lls2
+
 

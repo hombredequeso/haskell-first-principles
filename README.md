@@ -58,6 +58,8 @@ cabal --http-transport=plain-http update
 
 ```
 
+Note that if using cabal to install packages it is typically required to exit ghci and restart it, as the cabal packages seem to be read in once, at startup time.
+
 ## Prerequisites
 The main prerequisite is the ghci compiler.
 Probably the simplest way to get started is to install "Haskell Platform"

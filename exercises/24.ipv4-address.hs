@@ -3,16 +3,30 @@
 module Ipv4Paraser where
 
 import Data.Word
-
 import Text.Trifecta
 import Text.Parser.Token
 
 import Test.Hspec
-import Test.QuickCheck hiding (Success, Failure, Result)
+import Test.QuickCheck hiding (Success, Failure, Result) -- Clashes with Text.Trifecta
 
 data IPAddress =
     IPAddress Word32
     deriving (Eq, Ord)
+
+instance Show IPAddress where
+    show (IPAddress wordAddress) = joinWithSeparator "." atleast4Places where
+            places = toBaseValues 256 (fromIntegral wordAddress)
+            atleast4Places = makeLengthAtLeast 4 0 places
+
+-- Same as above, but using notation: Let ... in ...
+-- instance Show IPAddress where
+--     show (IPAddress wordAddress) = 
+--         let places = toBaseValues 256 (fromIntegral wordAddress) in
+--             let atleast4Places = makeLengthAtLeast 4 0 places in
+--                 joinWithSeparator "." atleast4Places
+
+instance Arbitrary IPAddress where
+    arbitrary = IPAddress <$> arbitrary
 
 
 makeLengthAtLeast :: Int -> a -> [a] -> [a]
@@ -23,15 +37,8 @@ makeLengthAtLeast minLength defaultVal  as
 joinWithSeparator :: Show a => String -> [a] -> String
 joinWithSeparator _ [] = ""
 joinWithSeparator separator (x:[]) = (show x)
-joinWithSeparator separator ( x:xs ) = (show x) ++ separator ++ (joinWithSeparator separator xs)
-
-instance Show IPAddress where
-    show (IPAddress wordAddress) = 
-        let places = toBaseValues 256 (fromIntegral wordAddress) in
-            let atleast4Places = makeLengthAtLeast 4 0 places in
-                joinWithSeparator "." atleast4Places
-
-
+joinWithSeparator separator ( x:xs ) = 
+    (show x) ++ separator ++ (joinWithSeparator separator xs)
 
 parseAddress :: Parser IPAddress
 parseAddress = do
@@ -52,12 +59,6 @@ toBaseInt' :: Integer -> Int -> Integer -> [Integer] -> Integer
 toBaseInt' total pos base [] = total
 toBaseInt' total pos base (h:t) = toBaseInt' (total + (h * base ^ pos)) (pos + 1) base t
 
-instance Eq a =>  Eq (Result  a) where
-    (Success x) == (Success y) =  x == y
-    (Failure x) == (Success y) = False
-    (Success x) == (Failure y) = False
-    (Failure x) == (Failure y) = True
-
 toBaseValues:: Integer -> Integer -> [Integer]
 toBaseValues a b = reverse $ toBaseValues' a b
 
@@ -66,16 +67,16 @@ toBaseValues' base value =
     let (d, m) = value `divMod` base in
         m : (toBaseValues' base d)
 
-
-instance Arbitrary IPAddress where
-    arbitrary = IPAddress <$> arbitrary
-
 showThenParseIsRoundTrip :: IPAddress -> Bool
-showThenParseIsRoundTrip ipAddress = 
-    let ipString = show ipAddress in
-        let ipParsed = parseString parseAddress mempty ipString in
-            ipParsed == Success ipAddress 
+showThenParseIsRoundTrip ipAddress = Success ipAddress == parsedIPAddress  where
+    ipString = show ipAddress
+    parsedIPAddress = parseString parseAddress mempty ipString
 
+instance Eq a =>  Eq (Result  a) where
+    (Success x) == (Success y) =  x == y
+    (Failure x) == (Success y) = False
+    (Success x) == (Failure y) = False
+    (Failure x) == (Failure y) = True
 
 main :: IO ()
 main = hspec $ do
@@ -111,38 +112,28 @@ main = hspec $ do
             let s = "204.120.0.15"
             (show $ IPAddress 3430416399) `shouldBe` s
 
-        -- it "low level hack test" $ do
-        --     let ipAddress = 1
-        --     let places = toBaseValues 256 ipAddress
-        --     print places
-        --     let atLeast4 =makeLengthAtLeast 4 0 places 
-        --     print atLeast4
-        --     print $ joinWithSeparator "." atLeast4
-
 
     describe "Show IPAddress -> Parse IPAddress is a round trip" $ do
         it "0.0.0.1" $ do
             let w32 = 1
             let ipAddress = IPAddress w32
             let ipAddressStr = show ipAddress
-            -- print ipAddressStr
             let parsedIPAddress = parse (ipAddressStr )
-            -- print parsedIPAddress
             Success ipAddress  `shouldBe` parsedIPAddress
 
         it "1.0.0.0" $ do
             let w32 = 1 * 256^3
             let ipAddress = IPAddress w32
             let ipAddressStr = show ipAddress
-            -- print ipAddressStr
             let parsedIPAddress = parse (ipAddressStr )
-            -- print parsedIPAddress
             Success ipAddress  `shouldBe` parsedIPAddress
 
-        it "random values" $ do
+        it "Round trip is equal: IPAddress -> string -> Parser<IPAddress>" $ do
             property $ \ipAddress ->
                 let ipAddressStr = show ipAddress in
                     let parsedIPAddress = parse (ipAddressStr ) in
                         Success ipAddress  == parsedIPAddress
 
+        it "Round trip is equal: IPAddress -> string -> Parser<IPAddress> : using function" $ do
+            property showThenParseIsRoundTrip
 

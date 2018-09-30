@@ -40,8 +40,11 @@ joinWithSeparator separator (x:[]) = (show x)
 joinWithSeparator separator ( x:xs ) = 
     (show x) ++ separator ++ (joinWithSeparator separator xs)
 
-parseAddress :: Parser IPAddress
-parseAddress = do
+-- Simplest to read version.
+-- But with introduction of parseNWithSeparator, which could be reused,
+-- the new version of parseAddress is better.
+parseAddress2 :: Parser IPAddress
+parseAddress2 = do
     a <- natural
     _ <- char '.'
     b <- natural
@@ -51,6 +54,28 @@ parseAddress = do
     d <- natural
     let i = toBaseInt 256 [a, b, c, d]
     return (IPAddress $ fromIntegral i)
+
+parseAddress :: Parser IPAddress
+parseAddress = 
+    IPAddress . fromIntegral . ( toBaseInt 256 ) <$> 
+        (parseNWithSeparator natural (char '.') 4)
+
+parseNWithSeparator :: Parser a -> Parser sep -> Int -> Parser [a]
+parseNWithSeparator _ _ 0 = pure []
+parseNWithSeparator aParser _ 1 = sequenceA [aParser]
+parseNWithSeparator aParser sepParser count = do
+    aa <- aParser
+    _ <- sepParser
+    remainder <- parseNWithSeparator aParser sepParser (count - 1)
+    return (aa : remainder)
+
+-- Or if you don't like 'do' notation :-), for the last one:
+parseNWithSeparator2 :: Parser a -> Parser sep -> Int -> Parser [a]
+parseNWithSeparator2 aParser sepParser count = 
+    aParser >>= \aa -> 
+    sepParser >> 
+    (parseNWithSeparator aParser sepParser (count - 1)) >>= \as -> 
+    return (aa : as)
 
 toBaseInt :: Integer -> [Integer] -> Integer
 toBaseInt base digits = toBaseInt' 0 0 base (reverse digits)

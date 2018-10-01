@@ -29,16 +29,23 @@ instance Arbitrary IPAddress where
     arbitrary = IPAddress <$> arbitrary
 
 
-makeLengthAtLeast :: Int -> a -> [a] -> [a]
 makeLengthAtLeast minLength defaultVal  as
     | ( length as >= minLength ) = as
     | otherwise = makeLengthAtLeast minLength defaultVal ( defaultVal:as )
 
+-- joining with recursion - replaces for joining with foldr
+-- joinWithSeparator1 :: Show a => String -> [a] -> String
+-- joinWithSeparator1 _ [] = ""
+-- joinWithSeparator1 separator (x:[]) = (show x)
+-- joinWithSeparator1 separator ( x:xs ) = 
+--     (show x) ++ separator ++ (joinWithSeparator separator xs)
+
+join' :: Show a => String -> a -> String -> String
+join' separator a b = if (length b == 0) then show a else show a ++ separator ++ b
+
 joinWithSeparator :: Show a => String -> [a] -> String
-joinWithSeparator _ [] = ""
-joinWithSeparator separator (x:[]) = (show x)
-joinWithSeparator separator ( x:xs ) = 
-    (show x) ++ separator ++ (joinWithSeparator separator xs)
+joinWithSeparator separator = foldr ( join' separator ) ""
+
 
 -- Simplest to read version.
 -- But with introduction of parseNWithSeparator, which could be reused,
@@ -161,4 +168,15 @@ main = hspec $ do
 
         it "Round trip is equal: IPAddress -> string -> Parser<IPAddress> : using function" $ do
             property showThenParseIsRoundTrip
+
+    describe "joinWithSeparator" $ do
+        it "no elements produces empty string" $ do
+            let noElements = [] :: [ String ]
+            joinWithSeparator "**" noElements `shouldBe` ""
+
+        it "single element produces string without separator" $ do
+            joinWithSeparator "**" [1] `shouldBe` "1"
+
+        it "multiple elements produces string with separators" $ do
+            joinWithSeparator "**" [1,2,3] `shouldBe` "1**2**3"
 

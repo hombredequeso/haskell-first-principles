@@ -27,11 +27,7 @@ validInitialCharParser :: Parser Char
 validInitialCharParser = letter <|> char '_'
 
 idParser :: Parser Id
---idParser = Id <$> ( token $ many validIdCharParser )
-idParser = do
-    a <- validInitialCharParser
-    as <- many validNonInitialCharParser
-    return (Id ( a:as ))
+idParser = Id <$> ((:) <$> validInitialCharParser <*> (many validNonInitialCharParser))
 
 data GraphType =
     UndirectedGraph |
@@ -62,9 +58,15 @@ undirectedEdgeTokenParser = token (string "--") >> return ()
 directedEdgeTokenParser :: Parser ()
 directedEdgeTokenParser = token (string "->") >> return ()
 
-sepBy2 :: Parser a -> Parser sep -> Parser [a] 
-sepBy2 pa psep = pa >>= \a -> psep >> pa `sepBy1` psep >>= \as -> return (a:as)
 
+sepBy2 :: Parser a -> Parser sep -> Parser [a] 
+-- Simple to understand. But seems quite a naive implementation:
+-- sepBy2 pa psep = pa >>= \a -> psep >> pa `sepBy1` psep >>= \as -> return (a:as)
+-- Awesome: that's a wonder to behold (and it works)
+-- Note that the later part could be replaced with sepBy1,
+-- but this is the full thing in all its glory.
+-- sepBy2 pa psep = (:) <$> pa <*> ((:) <$> (psep *> pa) <*> (many ( psep *> pa )))
+sepBy2 pa psep = (:) <$> pa <*>  ( (:) <$> (psep *> pa) <*> (many ( psep *> pa )))
 
 edgeParser :: Parser Edge
 edgeParser = Edge <$> (token nodeParser) `sepBy2` undirectedEdgeTokenParser
@@ -100,17 +102,11 @@ statementEnd = char ';' >> spaces
 manyStatementsParser :: Parser [Statement]
 manyStatementsParser = statementParser `sepEndBy` statementEnd
 
-
 parseGraph:: Parser Graph
-parseGraph = do
-    _ <- whiteSpace
-    graphType <- graphTypeParser
-    _ <- whiteSpace
-    graphName <- optional idParser
-    _ <- whiteSpace
-    statementList <- statementListParser
-    return $ Graph graphType graphName statementList 
-
+parseGraph = Graph <$> 
+                ( whiteSpace *> graphTypeParser ) <*> 
+                ( whiteSpace *> (optional idParser) ) <*> 
+                ( whiteSpace *> statementListParser )
 
 instance Eq a =>  Eq (Result  a) where
     (Success x) == (Success y) =  x == y

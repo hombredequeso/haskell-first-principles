@@ -47,10 +47,11 @@ data Graph = Graph GraphType (Maybe Id) [ Statement ]
 
 data Node = Node Id
             deriving (Eq, Show)   
-data Edge = Edge Node Node
+data Edge = Edge [Node]
+            deriving (Eq, Show)   
+data DirectedEdge = DirectedEdge [Node]
             deriving (Eq, Show)   
 
-type EdgeStatement = [Node]
 
 nodeParser :: Parser Node
 nodeParser = Node <$> idParser
@@ -58,15 +59,22 @@ nodeParser = Node <$> idParser
 undirectedEdgeTokenParser :: Parser ()
 undirectedEdgeTokenParser = token (string "--") >> return ()
 
+directedEdgeTokenParser :: Parser ()
+directedEdgeTokenParser = token (string "->") >> return ()
+
+sepBy2 :: Parser a -> Parser sep -> Parser [a] 
+sepBy2 pa psep = pa >>= \a -> psep >> pa `sepBy1` psep >>= \as -> return (a:as)
+
+
 edgeParser :: Parser Edge
-edgeParser = 
-    token nodeParser >>= \node1 ->
-    undirectedEdgeTokenParser >>
-    token nodeParser >>= \node2 ->
-    return (Edge node1 node2)
+edgeParser = Edge <$> (token nodeParser) `sepBy2` undirectedEdgeTokenParser
+
+directedEdgeParser :: Parser DirectedEdge
+directedEdgeParser = DirectedEdge <$> ( (token nodeParser) `sepBy2` directedEdgeTokenParser ) 
 
 data Statement =
     EdgeStatement Edge
+      | DirectedEdgeStatement DirectedEdge
       | NodeStatement Node
     deriving (Eq, Show)
 
@@ -77,7 +85,8 @@ bracketedSectionParser startChar endChar innerParser =
     <* ( token $ char endChar )
 
 statementParser :: Parser Statement
-statementParser = EdgeStatement <$> edgeParser
+statementParser = try (EdgeStatement <$> edgeParser )
+                    <|> ( DirectedEdgeStatement <$> directedEdgeParser )
 
 statementListParser :: Parser [Statement]
 statementListParser = between 
@@ -138,7 +147,7 @@ main = hspec $ do
                                 UndirectedGraph 
                                 (Just $ Id "name") 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "aa")) (Node (Id "bb")) )
+                                    (EdgeStatement $ Edge [(Node (Id "aa")), (Node (Id "bb"))] )
                                 ]
             graph `shouldBe` (Success expectedResult)
 
@@ -160,12 +169,12 @@ graph {
                                 UndirectedGraph 
                                 (Nothing) 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "a")) (Node (Id "b")) ),
-                                    (EdgeStatement $ Edge (Node (Id "b")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "a")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "d")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "e")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "e")) (Node (Id "a")) )
+                                    (EdgeStatement $ Edge [ (Node (Id "a")), (Node (Id "b")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "b")), (Node (Id "c")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "a")), (Node (Id "c")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "d")), (Node (Id "c")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "e")), (Node (Id "c")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "e")), (Node (Id "a")) ] )
                                 ]
             graph `shouldBe` (Success expectedResult)
 
@@ -185,50 +194,39 @@ digraph {
                                 DirectedGraph 
                                 (Nothing) 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "a")) (Node (Id "b")) ),
-                                    (EdgeStatement $ Edge (Node (Id "b")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "a")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "d")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "e")) (Node (Id "c")) ),
-                                    (EdgeStatement $ Edge (Node (Id "e")) (Node (Id "a")) )
+                                    (DirectedEdgeStatement $ DirectedEdge [ (Node (Id "a")), (Node (Id "b")) ] ),
+                                    (DirectedEdgeStatement $ DirectedEdge [ (Node (Id "b")), (Node (Id "c")) ] ),
+                                    (DirectedEdgeStatement $ DirectedEdge [ (Node (Id "c")), (Node (Id "d")) ] ),
+                                    (DirectedEdgeStatement $ DirectedEdge [ (Node (Id "d")), (Node (Id "a")) ] )
                                 ]
             graph `shouldBe` (Success expectedResult)
-
-
-
-        -- it "can make a basic undirected graph with multiple undirected edges" $ do
-        --     let graphStr = [r|graph name { aa -- bb; cc -- dd }|]
-        --     let graph = testParseGraph graphStr
-
-        --     let expectedResult = Graph 
-        --                         UndirectedGraph 
-        --                         (Just $ Id "name") 
-        --                         [
-        --                             (EdgeStatement $ Edge (Node (Id "aa")) (Node (Id "bb")) ),
-        --                             (EdgeStatement $ Edge (Node (Id "cc")) (Node (Id "dd")) )
-        --                         ]
-        --     graph `shouldBe` (Success expectedResult)
 
     describe "graph components" $ do
         it "can parse an undirected edge" $ do
             let edge = parseString edgeParser mempty "aa -- bb"
-            edge `shouldBe` (Success $ Edge (Node $ Id "aa") (Node $ Id "bb"))
+            edge `shouldBe` (Success $ Edge [ (Node $ Id "aa"), (Node $ Id "bb") ])
     
     describe "manyStatementsParser" $ do
         it "can parse zero undirected edgeOps" $ do
             let statements  = ( parseString manyStatementsParser mempty "" ) :: Result [Statement]
             statements `shouldBe` (Success [])
 
-        -- TODO: deal with whitespace only issues
-        -- it "can parse zero undirected edgeOps with whitespace string" $ do
-        --     let statements  = ( parseString manyStatementsParser mempty " " ) :: Result [Statement]
-        --     statements `shouldBe` (Success [])
 
         it "can parse one undirected edgeOps" $ do
             let statements  = ( parseString manyStatementsParser mempty "aa -- bb" ) :: Result [Statement]
             let expectedResult = 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "aa")) (Node (Id "bb")) )
+                                    (EdgeStatement $ Edge [ (Node (Id "aa")), (Node (Id "bb")) ] )
+                                ]
+
+            statements `shouldBe` (Success expectedResult)
+
+
+        it "can parse one directed edgeOps" $ do
+            let statements  = ( parseString manyStatementsParser mempty "aa -> bb" ) :: Result [Statement]
+            let expectedResult = 
+                                [
+                                    (DirectedEdgeStatement $ DirectedEdge [ (Node (Id "aa")), (Node (Id "bb")) ] )
                                 ]
 
             statements `shouldBe` (Success expectedResult)
@@ -238,8 +236,8 @@ digraph {
             let statements  = ( parseString manyStatementsParser mempty "aa -- bb;cc --dd" ) :: Result [Statement]
             let expectedResult = 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "aa")) (Node (Id "bb")) ),
-                                    (EdgeStatement $ Edge (Node (Id "cc")) (Node (Id "dd")) )
+                                    (EdgeStatement $ Edge [ (Node (Id "aa")), (Node (Id "bb")) ] ),
+                                    (EdgeStatement $ Edge [ (Node (Id "cc")), (Node (Id "dd")) ] )
                                 ]
 
             statements `shouldBe` (Success expectedResult)
@@ -248,8 +246,8 @@ digraph {
             let statements  = ( parseString manyStatementsParser mempty "aa -- bb;cc --dd;" ) :: Result [Statement]
             let expectedResult = 
                                 [
-                                    (EdgeStatement $ Edge (Node (Id "aa")) (Node (Id "bb")) ),
-                                    (EdgeStatement $ Edge (Node (Id "cc")) (Node (Id "dd")) )
+                                    (EdgeStatement $ Edge [(Node (Id "aa")), (Node (Id "bb")) ] ),
+                                    (EdgeStatement $ Edge [(Node (Id "cc")), (Node (Id "dd")) ] )
                                 ]
 
             statements `shouldBe` (Success expectedResult)

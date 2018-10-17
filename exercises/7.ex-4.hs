@@ -7,8 +7,7 @@ roundTripA :: (Show a, Read a) => a -> a
 roundTripA = read.show
 
 roundTrip :: (Show a, Read b) => a -> b
-roundTrip x = (read (show x))
-
+roundTrip = read.show
 
 main = do
     let x = 4::Int
